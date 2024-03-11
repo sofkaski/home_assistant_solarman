@@ -37,7 +37,7 @@ class Inverter:
             log.debug(f"Re-using logger connection {self._modbus.sock.getsockname()}")
             return self._modbus
         log.info(f"Connecting to solarman data logger {self._host}:{self._port}")
-        self._modbus = PySolarmanV5(self._host, self._serial, port=self._port, mb_slave_id=self._mb_slaveid, logger=log, auto_reconnect=True, socket_timeout=15)
+        self._modbus = PySolarmanV5(self._host, self._serial, port=self._port, mb_slave_id=self._mb_slaveid, logger=log, auto_reconnect=False, socket_timeout=15)
         self.status_connection = "Connected"
         log.debug(f"Connected via {self._modbus.sock.getsockname()}")
         return self._modbus
@@ -112,7 +112,7 @@ class Inverter:
             else:
                 # Clear cached previous results to not report stale and incorrect data
                 self._current_val = {}
-                self.disconnect_from_server()
+            self.disconnect_from_server()
         except Exception as e:
             log.warning(f"Querying inverter {self._serial} at {self._host}:{self._port} failed on connection start with exception [{type(e).__name__}: {e}]")
             self.status_connection = "Disconnected"
