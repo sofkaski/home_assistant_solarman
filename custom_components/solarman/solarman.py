@@ -34,17 +34,22 @@ class Inverter:
 
     def connect_to_server(self):
         if self._modbus:
+            log.debug(f"Re-using logger connection {self._modbus.sock.getsockname()}")
             return self._modbus
         log.info(f"Connecting to solarman data logger {self._host}:{self._port}")
         self._modbus = PySolarmanV5(self._host, self._serial, port=self._port, mb_slave_id=self._mb_slaveid, logger=log, auto_reconnect=True, socket_timeout=15)
+        log.debug(f"Connected via {self._modbus.sock.getsockname()}")
+        return self._modbus
 
     def disconnect_from_server(self):
         if self._modbus:
             try:
-                log.info(f"Disconnecting from solarman data logger {self._host}:{self._port}")
+                log.info(f"Disconnecting from solarman data logger {self._host}:{self._port} connected via {self._modbus.sock.getsockname()}")
                 self._modbus.disconnect()
             finally:
                 self._modbus = None
+        else:
+            log.debug(f"Disconnect called while no  existing connection.")
 
     def send_request(self, params, start, end, mb_fc):
         length = end - start + 1
