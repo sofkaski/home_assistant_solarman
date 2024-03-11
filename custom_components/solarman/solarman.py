@@ -38,6 +38,7 @@ class Inverter:
             return
         log.info(f"Connecting to solarman data logger {self._host}:{self._port}")
         self._modbus = PySolarmanV5(self._host, self._serial, port=self._port, mb_slave_id=self._mb_slaveid, logger=log, auto_reconnect=True, socket_timeout=15)
+        self.status_connection = "Connected"
         log.debug(f"Connected via {self._modbus.sock.getsockname()}")
 
     def disconnect_from_server(self):
@@ -46,8 +47,10 @@ class Inverter:
                 log.info(f"Disconnecting from solarman data logger {self._host}:{self._port} connected via {self._modbus.sock.getsockname()}")
                 self._modbus.disconnect()
             finally:
+                self.status_connection = "Disconnected"
                 self._modbus = None
         else:
+            self.status_connection = "Disconnected"
             log.debug(f"Disconnect called while no  existing connection.")
 
     def send_request(self, params, start, end, mb_fc):
@@ -104,10 +107,8 @@ class Inverter:
             if result == 1:
                 log.debug(f"All queries succeeded, exposing updated values.")
                 self.status_lastUpdate = datetime.now().strftime("%m/%d/%Y, %H:%M:%S")
-                self.status_connection = "Connected"
                 self._current_val = params.get_result()
             else:
-                self.status_connection = "Disconnected"
                 # Clear cached previous results to not report stale and incorrect data
                 self._current_val = {}
                 self.disconnect_from_server()
