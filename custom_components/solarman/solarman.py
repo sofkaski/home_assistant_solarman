@@ -1,15 +1,20 @@
 import yaml
 import logging
+import sys
+import time
+import traceback
+from queue import Empty
 from homeassistant.util import Throttle
 from datetime import datetime
 from .parser import ParameterParser
 from .const import MIN_TIME_BETWEEN_UPDATES
-from pysolarmanv5 import PySolarmanV5
+from pysolarmanv5 import PySolarmanV5, NoSocketAvailableError
 
 
 log = logging.getLogger(__name__)
 
 QUERY_RETRY_ATTEMPTS = 2
+RECOVERY_SECONDS = 20
 
 class Inverter:
     def __init__(self, path, serial, host, port, mb_slaveid, lookup_file):
@@ -75,7 +80,10 @@ class Inverter:
 
         try:
 
+            abort = False
             for request in requests:
+                if abort:
+                    break
                 start = request['start']
                 end = request['end']
                 mb_fc = request['mb_functioncode']
@@ -89,10 +97,26 @@ class Inverter:
                         self.connect_to_server()
                         self.send_request(params, start, end, mb_fc)
                         result = 1
+                    except Empty:
+                        result = 0
+                        log.debug("Disconnecting from server after queue empty exception")
+                        self.disconnect_from_server()
+                        time.sleep(RECOVERY_SECONDS)
+                    except NoSocketAvailableError:
+                        result = 0
+                        ex_type, ex_value, ex_traceback = sys.exc_info()
+                        tb = traceback.format_tb(ex_traceback)
+                        log.debug(f"Got NoSocketAvailable exception ({ex_value}) at {tb}")
+                        if ex_value == 'Connection closed on read':
+                            self.disconnect_from_server()
+                            time.sleep(RECOVERY_SECONDS)
+                        elif ex_value == 'No socket available':
+                            attempts_left = 0
+                            abort = True # No sense to continue with other requests in this update round
                     except Exception as e:
                         result = 0
                         log.warning(f"Querying [{range_string}] failed with exception [{type(e).__name__}: {e}]")
-                        self.disconnect_from_server()
+
                     if result == 0:
                         log.warning(f"Querying [{range_string}] failed, [{attempts_left}] retry attempts left")
                     else:
