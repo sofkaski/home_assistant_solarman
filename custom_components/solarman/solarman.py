@@ -1,11 +1,9 @@
-import socket
 import yaml
 import logging
-import struct
 from homeassistant.util import Throttle
 from datetime import datetime
 from .parser import ParameterParser
-from .const import *
+from .const import MIN_TIME_BETWEEN_UPDATES
 from pysolarmanv5 import PySolarmanV5
 
 
@@ -51,7 +49,7 @@ class Inverter:
                 self._modbus = None
         else:
             self.status_connection = "Disconnected"
-            log.debug(f"Disconnect called while no  existing connection.")
+            log.debug("Disconnect called while no  existing connection.")
 
     def send_request(self, params, start, end, mb_fc):
         length = end - start + 1
@@ -105,7 +103,7 @@ class Inverter:
                     break
 
             if result == 1:
-                log.debug(f"All queries succeeded, exposing updated values.")
+                log.debug("All queries succeeded, exposing updated values.")
                 self.status_lastUpdate = datetime.now().strftime("%m/%d/%Y, %H:%M:%S")
                 self._current_val = params.get_result()
             else:
