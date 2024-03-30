@@ -2,6 +2,7 @@ import socket
 import yaml
 import logging
 import struct
+import time
 from homeassistant.util import Throttle
 from datetime import datetime
 from .parser import ParameterParser
@@ -69,51 +70,42 @@ class Inverter:
         log.debug(f"Starting to query for [{len(requests)}] ranges...")
 
         try:
-
             for request in requests:
                 start = request['start']
                 end = request['end']
                 mb_fc = request['mb_functioncode']
-                range_string = f"{start}-{end} (0x{start:04X}-0x{end:04X})"
-                log.debug(f"Querying [{range_string}]...")
-
+                log.debug(f"Querying [{start} - {end}]...")
                 attempts_left = QUERY_RETRY_ATTEMPTS
                 while attempts_left > 0:
                     attempts_left -= 1
                     try:
                         self.connect_to_server()
                         self.send_request(params, start, end, mb_fc)
-                        result = 1
-                    except Exception as e:
-                        result = 0
-                        log.warning(f"Querying [{range_string}] failed with exception [{type(e).__name__}: {e}]")
-                        self.disconnect_from_server()
-                    if result == 0:
-                        log.warning(f"Querying [{range_string}] failed, [{attempts_left}] retry attempts left")
-                    else:
-                        log.debug(f"Querying [{range_string}] succeeded")
+                        log.debug(f"Querying [{start} - {end}] succeeded")
                         break
-                if result == 0:
-                    log.warning(f"Querying registers [{range_string}] failed, aborting.")
-                    break
-
+                    except Exception as e:
+                        log.warning(f"Querying [{start} - {end}] failed with exception [{type(e).__name__}: {e}] - [{attempts_left}] retry attempts left")
+                        if attempts_left == 0:
+                           log.warning(f"Querying registers [{start} - {end}] failed, aborting.")
+                           self._current_val = {} # Clear cached previous results to not report stale and incorrect data
+                           result = 0
+                           break
+                        else:
+                          time.sleep(1) # Give some time to the logger to rest from errors (maybe useless)
+                if result == 0: # early exit
+                   break
             if result == 1:
                 log.debug(f"All queries succeeded, exposing updated values.")
                 self.status_lastUpdate = datetime.now().strftime("%m/%d/%Y, %H:%M:%S")
                 self.status_connection = "Connected"
                 self._current_val = params.get_result()
-            else:
-                self.status_connection = "Disconnected"
-                # Clear cached previous results to not report stale and incorrect data
-                self._current_val = {}
-                self.disconnect_from_server()
         except Exception as e:
             log.warning(f"Querying inverter {self._serial} at {self._host}:{self._port} failed on connection start with exception [{type(e).__name__}: {e}]")
             self.status_connection = "Disconnected"
             # Clear cached previous results to not report stale and incorrect data
             self._current_val = {}
             self.disconnect_from_server()
-
+            
     def get_current_val(self):
         return self._current_val
 
