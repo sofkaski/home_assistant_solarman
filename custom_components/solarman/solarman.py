@@ -133,7 +133,7 @@ class Inverter:
             else:
                 # Clear cached previous results to not report stale and incorrect data
                 self._current_val = {}
-                self.disconnect_from_server()
+            self.disconnect_from_server()
         except Exception as e:
             log.warning(f"Querying inverter {self._serial} at {self._host}:{self._port} failed on connection start with exception [{type(e).__name__}: {e}]")
             self.status_connection = "Disconnected"
